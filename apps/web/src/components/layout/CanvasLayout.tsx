@@ -34,7 +34,7 @@ export function CanvasLayout() {
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-neutral-950">
       {/* Main canvas */}
-      <PixelCanvas />
+      <PixelCanvas onPlacePixel={placePixel} />
 
       {/* Top bar */}
       <div className="absolute top-4 left-4 right-4 z-10 flex items-start justify-between pointer-events-none">

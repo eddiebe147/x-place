@@ -5,10 +5,14 @@ import { useCanvasStore } from '@/stores/canvas-store';
 import { useUIStore } from '@/stores/ui-store';
 import { useCanvasRenderer } from '@/hooks/useCanvasRenderer';
 import { usePanZoom } from '@/hooks/usePanZoom';
-import { CANVAS_WIDTH, CANVAS_HEIGHT } from '@x-place/shared';
+import { CANVAS_WIDTH, CANVAS_HEIGHT, ColorIndex } from '@x-place/shared';
 import { cn } from '@/lib/utils';
 
-export function PixelCanvas() {
+interface PixelCanvasProps {
+  onPlacePixel?: (x: number, y: number, color: ColorIndex) => void;
+}
+
+export function PixelCanvas({ onPlacePixel }: PixelCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const { colorIndices, updatePixel, isLoading } = useCanvasStore();
@@ -74,6 +78,11 @@ export function PixelCanvas() {
       updatePixel(coords.x, coords.y, selectedColor);
       queuePixelUpdate({ x: coords.x, y: coords.y, color: selectedColor });
 
+      // Send to server via WebSocket
+      if (onPlacePixel) {
+        onPlacePixel(coords.x, coords.y, selectedColor);
+      }
+
       // Set cooldown (5 seconds for demo)
       setCooldown(Date.now() + 5000);
 
@@ -87,6 +96,7 @@ export function PixelCanvas() {
       updatePixel,
       queuePixelUpdate,
       setCooldown,
+      onPlacePixel,
     ]
   );
 
