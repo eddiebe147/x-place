@@ -9,7 +9,8 @@ import { useEffect, useState } from 'react';
 
 export function BottomToolbar() {
   const { selectedColor, setSelectedColor, cooldownEnd } = useUIStore();
-  const { isAuthenticated, isSpectator } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
+  const isSpectator = user?.isSpectatorOnly ?? false;
 
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
