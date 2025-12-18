@@ -1,13 +1,13 @@
 /**
- * OAuth callback route for X (Twitter) authentication
- * Handles the PKCE flow redirect from Supabase Auth
+ * OAuth/Magic Link callback route for authentication
+ * Handles both OAuth code exchange and magic link token verification
  */
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getRedis } from '@/lib/redis/client';
 import { nanoid } from 'nanoid';
-import { MIN_ACCOUNT_AGE_DAYS, COOLDOWNS } from '@x-place/shared';
+import { COOLDOWNS } from '@x-place/shared';
 import type { UserSession } from '@x-place/shared';
 
 export async function GET(request: Request) {
@@ -18,59 +18,33 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient();
 
-    // Exchange the OAuth code for a session
+    // Exchange the code for a session
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error && data.user) {
-      // Extract X (Twitter) user metadata from the OAuth response
-      const xMetadata = data.user.user_metadata;
+      const user = data.user;
+      const metadata = user.user_metadata || {};
 
-      // Get X account creation date for Sybil defense
-      // Twitter API provides this in user_metadata.created_at
-      const xAccountCreatedAt = xMetadata?.created_at as string | undefined;
-
-      // Calculate account age in days
-      let accountAgeDays = 365; // Default to old enough if we can't determine
-      if (xAccountCreatedAt) {
-        const createdDate = new Date(xAccountCreatedAt);
-        const now = new Date();
-        accountAgeDays = Math.floor(
-          (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-        );
-      }
-
-      // Sybil defense: accounts less than 30 days old are spectator-only
-      const isSpectatorOnly = accountAgeDays < MIN_ACCOUNT_AGE_DAYS;
-
-      // Check if user is verified (blue checkmark)
-      const isVerified = xMetadata?.verified === true;
-
-      // Determine cooldown based on verification status
-      const cooldownSeconds = isSpectatorOnly
-        ? 0 // Spectators can't place anyway
-        : isVerified
-          ? COOLDOWNS.VERIFIED_MS / 1000
-          : COOLDOWNS.NORMAL_MS / 1000;
+      // Check if this is an X (Twitter) OAuth login
+      const provider = user.app_metadata?.provider;
+      const isXLogin = provider === 'twitter';
 
       // Generate a unique session token for WebSocket authentication
       const sessionToken = nanoid(32);
 
       // Build the UserSession object
       const session: UserSession = {
-        userId: data.user.id,
-        xUserId: xMetadata?.provider_id || xMetadata?.sub || '',
-        xUsername:
-          xMetadata?.user_name ||
-          xMetadata?.preferred_username ||
-          xMetadata?.name ||
-          'unknown',
-        xDisplayName: xMetadata?.full_name || xMetadata?.name || null,
-        xProfileImageUrl:
-          xMetadata?.avatar_url || xMetadata?.picture || null,
-        factionId: null, // User hasn't joined a faction yet
-        isVerified,
-        isSpectatorOnly,
-        cooldownSeconds,
+        userId: user.id,
+        xUserId: isXLogin ? (metadata.provider_id || metadata.sub || '') : '',
+        xUsername: isXLogin
+          ? (metadata.user_name || metadata.preferred_username || metadata.name || 'unknown')
+          : 'unknown',
+        xDisplayName: isXLogin ? (metadata.full_name || metadata.name || null) : null,
+        xProfileImageUrl: metadata.avatar_url || metadata.picture || null,
+        factionId: null,
+        isVerified: metadata.verified === true,
+        isSpectatorOnly: false, // All authenticated users can place pixels
+        cooldownSeconds: COOLDOWNS.NORMAL_MS / 1000,
         createdAt: new Date().toISOString(),
       };
 
@@ -80,12 +54,11 @@ export async function GET(request: Request) {
         ex: 86400, // 24 hours
       });
 
-      console.log(
-        `[Auth] User ${session.xUsername} authenticated (verified: ${isVerified}, spectator: ${isSpectatorOnly})`
-      );
+      const displayName = user.email || user.id.slice(0, 8);
+      console.log('[Auth] User authenticated:', displayName, '(provider:', provider || 'email', ')');
 
       // Create response with redirect to home
-      const response = NextResponse.redirect(`${origin}${next}`);
+      const response = NextResponse.redirect(origin + next);
 
       // Set session token cookie for client to read
       response.cookies.set('xplace_session_token', sessionToken, {
@@ -104,5 +77,5 @@ export async function GET(request: Request) {
   }
 
   // Redirect to error page or home with error param
-  return NextResponse.redirect(`${origin}/?error=auth_failed`);
+  return NextResponse.redirect(origin + '/?error=auth_failed');
 }

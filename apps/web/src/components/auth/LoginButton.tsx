@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 
@@ -9,11 +10,33 @@ interface LoginButtonProps {
 }
 
 /**
- * Login/Logout button with X branding
+ * Login/Logout button with magic link email auth
  * Shows user profile when authenticated
  */
 export function LoginButton({ className, compact }: LoginButtonProps) {
-  const { isAuthenticated, isLoading, user, loginWithX, logout } = useAuth();
+  const { isAuthenticated, isLoading, user, loginWithEmail, logout } = useAuth();
+  const [showEmailInput, setShowEmailInput] = useState(false);
+  const [email, setEmail] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim()) return;
+
+    setIsSending(true);
+    setMessage(null);
+
+    try {
+      await loginWithEmail(email.trim());
+      setMessage('Check your email for the magic link!');
+      setEmail('');
+    } catch {
+      setMessage('Failed to send magic link. Try again.');
+    } finally {
+      setIsSending(false);
+    }
+  };
 
   // Loading state
   if (isLoading) {
@@ -33,18 +56,9 @@ export function LoginButton({ className, compact }: LoginButtonProps) {
     return (
       <div className={cn('flex items-center gap-2', className)}>
         {!compact && (
-          <>
-            {user.xProfileImageUrl && (
-              <img
-                src={user.xProfileImageUrl}
-                alt={user.xUsername}
-                className="w-8 h-8 rounded-full border border-neutral-700"
-              />
-            )}
-            <span className="text-sm text-neutral-300 max-w-[120px] truncate">
-              @{user.xUsername}
-            </span>
-          </>
+          <span className="text-sm text-neutral-300 max-w-[150px] truncate">
+            {user.xUsername !== 'unknown' ? `@${user.xUsername}` : user.userId.slice(0, 8)}
+          </span>
         )}
         <button
           onClick={logout}
@@ -59,26 +73,67 @@ export function LoginButton({ className, compact }: LoginButtonProps) {
     );
   }
 
+  // Show email input form
+  if (showEmailInput) {
+    return (
+      <form onSubmit={handleSubmit} className={cn('flex items-center gap-2', className)}>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="your@email.com"
+          className={cn(
+            'bg-neutral-800 border border-neutral-700 rounded-lg text-white placeholder-neutral-500',
+            'focus:outline-none focus:ring-1 focus:ring-sky-500',
+            compact ? 'px-2 py-1 text-xs w-32' : 'px-3 py-1.5 text-sm w-40'
+          )}
+          disabled={isSending}
+          autoFocus
+        />
+        <button
+          type="submit"
+          disabled={isSending || !email.trim()}
+          className={cn(
+            'bg-sky-600 hover:bg-sky-500 disabled:bg-neutral-700 text-white rounded-lg transition-colors',
+            compact ? 'px-2 py-1 text-xs' : 'px-3 py-1.5 text-sm'
+          )}
+        >
+          {isSending ? '...' : 'Send'}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setShowEmailInput(false);
+            setMessage(null);
+          }}
+          className="text-neutral-500 hover:text-neutral-300 text-sm"
+        >
+          ✕
+        </button>
+        {message && (
+          <span className={cn(
+            'text-xs',
+            message.includes('Check') ? 'text-green-400' : 'text-red-400'
+          )}>
+            {message}
+          </span>
+        )}
+      </form>
+    );
+  }
+
   // Not authenticated - show login button
   return (
     <button
-      onClick={loginWithX}
+      onClick={() => setShowEmailInput(true)}
       className={cn(
-        'bg-black hover:bg-neutral-900 text-white rounded-lg transition-colors',
-        'flex items-center gap-2 border border-neutral-700',
+        'bg-sky-600 hover:bg-sky-500 text-white rounded-lg transition-colors',
+        'flex items-center gap-2',
         compact ? 'px-3 py-1.5 text-xs' : 'px-4 py-2 text-sm',
         className
       )}
     >
-      {/* X (Twitter) Logo */}
-      <svg
-        className={compact ? 'w-3 h-3' : 'w-4 h-4'}
-        viewBox="0 0 24 24"
-        fill="currentColor"
-      >
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-      {compact ? 'Login' : 'Login with X'}
+      {compact ? 'Login' : 'Login with Email'}
     </button>
   );
 }

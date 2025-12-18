@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useAuthStore, canPlacePixels } from '@/stores/auth-store';
 
 /**
- * Hook for managing X OAuth authentication
+ * Hook for managing authentication with magic links
  */
 export function useAuth() {
   const {
@@ -38,7 +38,7 @@ export function useAuth() {
             const data = await res.json();
             if (data.user) {
               setUser(data.user);
-              console.log('[Auth] Session restored for:', data.user.xUsername);
+              console.log('[Auth] Session restored for user:', data.user.userId.slice(0, 8));
             } else {
               setLoading(false);
             }
@@ -59,7 +59,23 @@ export function useAuth() {
     initAuth();
   }, [setUser, setSessionToken, setLoading]);
 
-  // Login with X (Twitter)
+  // Login with magic link (email)
+  const loginWithEmail = useCallback(async (email: string) => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      console.error('[Auth] Magic link error:', error);
+      throw error;
+    }
+  }, []);
+
+  // Legacy: Login with X (Twitter) - can be used for linking account later
   const loginWithX = useCallback(async () => {
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
@@ -104,6 +120,7 @@ export function useAuth() {
     isAuthenticated,
     isLoading,
     canPlacePixels: userCanPlacePixels,
+    loginWithEmail,
     loginWithX,
     logout,
   };
