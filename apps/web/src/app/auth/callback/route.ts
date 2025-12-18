@@ -5,16 +5,10 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { Redis } from '@upstash/redis';
+import { getRedis } from '@/lib/redis/client';
 import { nanoid } from 'nanoid';
 import { MIN_ACCOUNT_AGE_DAYS, COOLDOWNS } from '@x-place/shared';
 import type { UserSession } from '@x-place/shared';
-
-// Initialize Upstash Redis client
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -81,6 +75,7 @@ export async function GET(request: Request) {
       };
 
       // Store session in Redis with 24-hour TTL
+      const redis = getRedis();
       await redis.set(`xplace:session:${sessionToken}`, JSON.stringify(session), {
         ex: 86400, // 24 hours
       });

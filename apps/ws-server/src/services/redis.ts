@@ -16,16 +16,23 @@ export interface RedisClients {
  * Create Redis client connections
  */
 export async function createRedisClients(): Promise<RedisClients> {
+  const url = config.redis.url;
+  const isTls = url.startsWith('rediss://');
+
+  console.log(`Connecting to Redis: ${url.replace(/:[^:@]*@/, ':***@')}`);
+
   const options = {
     maxRetriesPerRequest: 3,
     retryDelayOnFailover: 100,
     enableReadyCheck: true,
     connectTimeout: 10000,
+    // Enable TLS for Upstash Redis (rediss:// URLs)
+    ...(isTls && { tls: {} }),
   };
 
-  const client = new Redis(config.redis.url, options);
-  const publisher = new Redis(config.redis.url, options);
-  const subscriber = new Redis(config.redis.url, options);
+  const client = new Redis(url, options);
+  const publisher = new Redis(url, options);
+  const subscriber = new Redis(url, options);
 
   // Wait for connections
   await Promise.all([

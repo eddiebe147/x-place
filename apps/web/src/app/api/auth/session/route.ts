@@ -5,13 +5,8 @@
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { Redis } from '@upstash/redis';
+import { getRedis } from '@/lib/redis/client';
 import type { UserSession } from '@x-place/shared';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
 
 export async function GET() {
   const cookieStore = await cookies();
@@ -22,6 +17,7 @@ export async function GET() {
   }
 
   try {
+    const redis = getRedis();
     const session = await redis.get<UserSession | string>(`xplace:session:${token}`);
 
     if (!session) {

@@ -5,12 +5,7 @@
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { Redis } from '@upstash/redis';
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+import { getRedis } from '@/lib/redis/client';
 
 export async function POST() {
   const cookieStore = await cookies();
@@ -19,6 +14,7 @@ export async function POST() {
   if (token) {
     try {
       // Delete the session from Redis
+      const redis = getRedis();
       await redis.del(`xplace:session:${token}`);
       console.log('[Auth] Session deleted from Redis');
     } catch (error) {

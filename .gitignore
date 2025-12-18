@@ -53,3 +53,4 @@ docker/data
 
 # Misc
 *.tsbuildinfo
+.env*.local
